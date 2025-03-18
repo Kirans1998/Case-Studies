@@ -154,7 +154,7 @@ SELECT sales.customer_id,
     ORDER BY total_amount DESC;
     
     
-    
+  -- 10)  In the first week after a customer joins the program (including their join date) they earn 2x points on all items, not just sushi - how many points do customer A and B have at the end of January?
   SELECT sales.customer_id,
  SUM(
       CASE 
@@ -172,46 +172,35 @@ SELECT sales.customer_id,
     ORDER BY total_points DESC;  
     
     
-  SELECT sales.customer_id , sales.order_date, menu.product_name,menu.price,
-    CASE
-         WHEN sales.order_date >= members.join_date THEN 'Yes'
-         ELSE 'No'
-    END AS members,
-    CASE
-       WHEN sales.order_date >= members.join_date 
-       THEN DENSE_RANK() OVER (PARTITION BY sales.customer_id,members ORDER BY sales.ORDER_DATE)
-       ELSE null
-       END AS Ranking
-       
-    FROM sales
-    JOIN menu ON sales.product_id = menu.product_id
-    LEFT JOIN members ON sales.customer_id = members.customer_id;
+ 
     
-    
-    
-WITH RankedOrders AS (
-    SELECT 
-        s.customer_id, 
-        s.order_date, 
-        m.product_name, 
-        m.price, 
-        CASE 
-            WHEN mb.join_date IS NULL OR s.order_date < mb.join_date THEN 'N' 
-            ELSE 'Y' 
-        END AS member_status,
-        CASE 
-            WHEN mb.join_date IS NULL OR s.order_date < mb.join_date THEN NULL
-            ELSE DENSE_RANK() OVER (
-                PARTITION BY s.customer_id, mb.customer_id 
-                ORDER BY s.order_date
-            )
-        END AS ranking
-    FROM sales s
-    JOIN menu m ON s.product_id = m.product_id
-    LEFT JOIN members mb ON s.customer_id = mb.customer_id
+   --  Danny also requires further information about the ranking of customer products, but he purposely does not need the ranking for non-member purchases so he expects null ranking values for the records when customers are not yet part of the loyalty program.
+WITH joined_data AS (
+  SELECT 
+    s.customer_id,
+    s.order_date,
+    m.product_name,
+    m.price,
+    CASE 
+      WHEN mem.join_date IS NOT NULL AND s.order_date >= mem.join_date THEN 'Y'
+      ELSE 'N' 
+    END AS member
+  FROM sales s
+  JOIN menu m ON s.product_id = m.product_id
+  LEFT JOIN members mem ON s.customer_id = mem.customer_id
 )
-SELECT * FROM RankedOrders
-ORDER BY customer_id, order_date;
+SELECT 
+  customer_id,
+  order_date,
+  product_name,
+  price,
+  member,
+  CASE 
+    WHEN member = 'Y' THEN RANK() OVER (PARTITION BY customer_id, member ORDER BY order_date)
+    ELSE NULL 
+  END AS ranking
+FROM joined_data
+ORDER BY customer_id, order_date, product_name;
 
 
 
